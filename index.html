@@ -1,1 +1,310 @@
-# CRIKO-NEWS
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ledger · Negocios y finanzas, explicados</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Lora:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#121c3d;--card:#1c2d5a;--tx:#fffaf0;--mu:#b9c0d8;--ac:#cdb49d;--ln:#ffffff24;--up:#8fd0a8;--dn:#f08a8a;--fs:16px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:var(--fs)/1.55 Lora,Georgia,serif}
+h1,h2,.big{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;margin:0}
+h2{font-size:1.55em;margin-bottom:6px}
+.num{font-variant-numeric:tabular-nums}
+header{max-width:960px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:calc(14px + env(safe-area-inset-top,0px)) 16px 6px}
+header .w{flex:1}header h1{font-size:2.1em;letter-spacing:.02em}
+header small,.mu{color:var(--mu)}
+.ib{background:none;border:1px solid var(--ln);color:var(--tx);width:40px;height:40px;border-radius:50%;display:grid;place-items:center;cursor:pointer}
+main{max-width:960px;margin:0 auto;padding:10px 16px 120px}
+.g{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:18px}
+.wide{grid-column:1/-1}
+.big{font-size:2.3em;color:var(--ac)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.b{font:inherit;font-size:.9em;color:var(--tx);background:none;border:1px solid var(--ln);border-radius:20px;padding:6px 14px;cursor:pointer}
+.b.on{background:var(--ac);color:var(--bg);border-color:var(--ac)}
+.row{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--ln)}
+.row>div:first-child{flex:1;min-width:0}.r{text-align:right}
+.up{color:var(--up)}.dn{color:var(--dn)}
+.st{background:none;border:0;color:var(--ac);cursor:pointer;padding:4px}
+a.it{display:block;color:var(--tx);text-decoration:none;padding-top:11px;border-top:1px solid var(--ln)}
+.ch{font:inherit;font-size:.78em;background:none;color:var(--ac);border:1px solid var(--ac);border-radius:12px;padding:1px 10px;margin:4px 6px 8px 0;cursor:pointer}
+input,select{font:inherit;width:100%;color:var(--tx);background:#00000026;border:1px solid var(--ln);border-radius:10px;padding:10px;margin:3px 0 10px}
+label{font-size:.85em;color:var(--mu)}
+#dock{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;gap:2px;padding:7px;border-radius:32px;background:color-mix(in srgb,var(--card) 86%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--ln);box-shadow:0 16px 40px #0007;z-index:5;max-width:96vw}
+#dock button{font:inherit;font-size:.62em;color:var(--mu);background:none;border:0;border-radius:24px;padding:8px 8px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+#dock button.on{background:var(--ac);color:var(--bg)}
+#m{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;padding:18px;z-index:9}
+#mc{max-width:540px;width:100%;max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:22px}
+#toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--ac);color:var(--bg);padding:10px 18px;border-radius:20px;display:none;z-index:10;max-width:90%}
+.kid{margin:6px 0 2px;padding-left:10px;border-left:2px solid var(--ac)}
+#cl{max-height:300px;overflow:auto;margin-bottom:8px}.me{text-align:right;color:var(--ac);margin:8px 0}
+.lk{cursor:pointer;border-bottom:1px dotted var(--ac)}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+</style>
+</head>
+<body>
+<header><div class="w"><h1>Ledger</h1><small id="sub"></small></div><button class="ib" data-a="refresh" aria-label="Actualizar" id="rf"></button><button class="ib" data-a="settings" aria-label="Ajustes" id="sg"></button></header>
+<main id="v"></main>
+<nav id="dock"></nav>
+<div id="m"><div id="mc"></div></div>
+<div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const D={lang:'es',size:1,sound:1,theme:0,alerts:1,favs:[],streak:0,last:'',prev:{},sim:{cash:10000,pos:{}}};
+let S=D;try{S=Object.assign(D,JSON.parse(localStorage.getItem('bz3')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('bz3',JSON.stringify(S))}catch(e){}};
+const b=(e,n)=>S.lang==='en'?n:e,lg=()=>S.lang==='en'?1:0;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const IC={home:'M3 11l9-8 9 8v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z',chart:'M3 3v18h18M7 15l4-4 3 3 5-6',news:'M4 4h13v16H6a2 2 0 01-2-2zM17 8h3v10a2 2 0 01-2 2M8 8h6M8 12h6M8 16h4',scan:'M11 18a7 7 0 100-14 7 7 0 000 14zM21 21l-5-5M8.5 13v-2M11 13V8M13.5 13v-3',book:'M4 4h6a2 2 0 012 2v14a2 2 0 00-2-2H4zM20 4h-6a2 2 0 00-2 2v14a2 2 0 012-2h6z',star:'M12 3l2.8 6 6.2.7-4.7 4.3 1.4 6.5-5.7-3.3-5.7 3.3 1.4-6.5L3 9.7 9.2 9z',sl:'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M7 10v4M17 16v4',rf:'M20 11a8 8 0 10-2.3 5.7M20 4v7h-7',sim:'M3 17l6-6 4 4 8-8M15 7h6v6',bot:'M4 5h16v11H9l-5 4zM8 9h8M8 12h5'};
+const ico=(k,s=20,f)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${f?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[k]}"/></svg>`;
+const TH=[['Navy','#0e1630','#18264d','#fffaf0','#b9c0d8','#cdb49d','#ffffff24','#8fd0a8','#f08a8a'],['Cacao','#21150f','#34241a','#fffaf0','#cdb49d','#b38b64','#ffffff22','#8fd0a8','#f08a8a'],['Vino','#1f0a10','#34121c','#fffaf0','#d9b9bd','#cdb49d','#ffffff22','#8fd0a8','#f4a0a0'],['Negro','#0b0b0d','#17171b','#f1f1f1','#9b9b9b','#b38b64','#ffffff1f','#8fd0a8','#f08a8a']];
+const TB=[['hoy','home',['Inicio','Home']],['mk','chart',['Mercados','Markets']],['nw','news',['Noticias','News']],['sim','sim',['Simular','Simulate']],['ln','bot',['Asistente','Assistant']]];
+let tab='hoy',mkf='all',nws='all',nwq='',gq='',mq='',STK='',CRN=63;
+/* sonido suave */
+let AC;function beep(f=520,d=.14){if(!S.sound)return;try{AC=AC||new AudioContext();const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=f;g.gain.value=.07;o.connect(g);g.connect(AC.destination);o.start();g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.stop(AC.currentTime+d)}catch(e){}}
+const jingle=u=>(u?[523,659,784]:[392,330,262]).forEach((f,i)=>setTimeout(()=>beep(f,.2),i*120));
+/* datos */
+const j=async u=>{const r=await fetch(u);if(!r.ok)throw 0;return r.json()};
+const px=u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u);
+const yj=async u=>{for(const p of [x=>x,px,x=>'https://corsproxy.io/?'+encodeURIComponent(x),x=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(x)]){try{const r=await fetch(p(u));if(r.ok)return await r.json()}catch(e){}}throw 0};
+let UNI=/*UNI*/[["^GSPC","S&P 500","i"],["^IXIC","Nasdaq","i"],["^DJI","Dow Jones","i"],["GC=F","Oro / Gold","i"],["CL=F","Petróleo / Oil","i"],["AAPL","Apple","s"],["MSFT","Microsoft","s"],["NVDA","Nvidia","s"],["GOOGL","Alphabet Google","s"],["AMZN","Amazon","s"],["META","Meta Facebook","s"],["TSLA","Tesla","s"],["AVGO","Broadcom","s"],["BRK-B","Berkshire Hathaway","s"],["JPM","JPMorgan","s"],["LLY","Eli Lilly","s"],["V","Visa","s"],["WMT","Walmart","s"],["XOM","Exxon Mobil","s"],["MA","Mastercard","s"],["COST","Costco","s"],["NFLX","Netflix","s"],["ORCL","Oracle","s"],["HD","Home Depot","s"],["PG","Procter & Gamble","s"],["JNJ","Johnson & Johnson","s"],["BAC","Bank of America","s"],["KO","Coca-Cola","s"],["AMD","AMD","s"],["DIS","Disney","s"],["MCD","McDonalds","s"],["NKE","Nike","s"],["PEP","PepsiCo","s"],["ADBE","Adobe","s"],["CRM","Salesforce","s"],["INTC","Intel","s"],["SBUX","Starbucks","s"],["BA","Boeing","s"],["PFE","Pfizer","s"],["UBER","Uber","s"],["PYPL","PayPal","s"],["TSM","TSMC","s"],["AMX","America Movil","s"],["SPY","SPY S&P 500 ETF","e"],["QQQ","QQQ Nasdaq 100 ETF","e"],["VOO","VOO Vanguard S&P 500","e"],["VTI","VTI Total Market","e"],["DIA","DIA Dow Jones ETF","e"],["IWM","IWM Russell 2000","e"],["GLD","GLD Gold ETF","e"],["SCHD","SCHD Dividend ETF","e"],["VNQ","VNQ Real Estate ETF","e"],["ARKK","ARKK Innovation ETF","e"],["BTC-USD","Bitcoin","c"],["ETH-USD","Ethereum","c"],["SOL-USD","Solana","c"],["XRP-USD","XRP","c"],["BNB-USD","BNB","c"],["DOGE-USD","Dogecoin","c"],["ADA-USD","Cardano","c"]]/*END*/;
+const SRC=/*SRC*/{"cnbc":["CNBC","https://www.cnbc.com/id/100003114/device/rss/rss.html"],"wsj":["WSJ","https://feeds.content.dowjones.io/public/rss/RSSMarketsMain"],"inv":["Investing.com","https://www.investing.com/rss/news.rss"],"yh":["Yahoo Finance","https://finance.yahoo.com/news/rssindex"],"mw":["MarketWatch","https://feeds.marketwatch.com/marketwatch/topstories/"],"bbc":["BBC Business","https://feeds.bbci.co.uk/news/business/rss.xml"],"nyt":["NYT Business","https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"],"cd":["CoinDesk","https://www.coindesk.com/arc/outboundfeeds/rss/"]}/*END*/;
+const Q={ix:null,st:null,etf:null,cr:null,fx:null,rates:null},N={items:[],at:0};
+const dt=s=>/^\d{4}-\d\d-\d\d \d/.test(s)?new Date(String(s).replace(' ','T')+'Z'):new Date(s);
+let DEMO=false;
+const hs=s=>[...s].reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0,7),rnd=z=>()=>(z=(z*1664525+1013904223)>>>0)/4294967296;
+function demoCandles(s){const R=rnd(hs(s));let p=20+hs(s)%480;const o=[],h=[],l=[],c=[],t=[],n=Date.now()/1e3|0;for(let i=252;i>0;i--){const a=p,z=a*(1+(R()-.48)*.04);o.push(a);c.push(z);h.push(Math.max(a,z)*(1+R()*.01));l.push(Math.min(a,z)*(1-R()*.01));t.push(n-i*86400);p=z}return{t,o,h,l,c}}
+async function loadQ(){
+ let qs=null;try{const u=await j('data/universe.json?'+Date.now());if(u.length>UNI.length)UNI=u}catch(e){}
+ try{qs=(await j('data/quotes.json?'+Date.now())).q}catch(e){}
+ const one=async([s,n,t])=>{let x=qs&&qs[s];if(!x){try{const c=(await yj('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(s)+'?interval=1d&range=5d')).chart.result[0],z=c.indicators.quote[0].close.filter(v=>v!=null);x={p:c.meta.regularMarketPrice,pc:z[z.length-2]}}catch(e){}}return{id:s,n,sub:s,t,p:x?x.p:null,ch:x&&x.pc?(x.p/x.pc-1)*100:0}};
+ let r=await Promise.all((qs?UNI:UNI.slice(0,14)).map(one));
+ if(!qs&&r.every(x=>x.p==null)){DEMO=true;CD=CD||{};r=UNI.map(([s,n,t])=>{const d=CD[s]||(CD[s]=demoCandles(s)),k=d.c.length;return{id:s,n,sub:s,t,p:d.c[k-1],ch:(d.c[k-1]/d.c[k-2]-1)*100}})}
+ Q.ix=r.filter(x=>x.t==='i');Q.st=r.filter(x=>x.t==='s');Q.etf=r.filter(x=>x.t==='e');Q.cr=r.filter(x=>x.t==='c');
+ if(!qs)await j('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1').then(r=>Q.cr=r.map(c=>({id:c.symbol.toUpperCase()+'-USD',n:c.name,sub:c.symbol.toUpperCase(),t:'c',p:c.current_price,ch:c.price_change_percentage_24h||0}))).catch(()=>0);
+ await j('https://api.frankfurter.app/latest?from=USD&to=MXN,EUR,GBP,ARS,JPY,CAD,COP').then(r=>{Q.rates=r.rates;Q.fx=Object.entries(r.rates).map(([k,v])=>({id:'fx'+k,n:'USD / '+k,sub:'',p:v,ch:0,fx:1}))}).catch(()=>Q.fx=Q.fx||[]);
+ alertFavs()}
+async function feed(u){
+ try{return (await j('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(u))).items.map(i=>({t:i.title,l:i.link,d:dt(i.pubDate).toISOString()}))}catch(e){}
+ for(const p of [px,x=>'https://corsproxy.io/?'+encodeURIComponent(x)]){try{const x=new DOMParser().parseFromString(await (await fetch(p(u))).text(),'text/xml');const it=[...x.querySelectorAll('item')].map(i=>({t:i.querySelector('title').textContent,l:i.querySelector('link').textContent,d:new Date(i.querySelector('pubDate').textContent).toISOString()}));if(it.length)return it}catch(e){}}
+ return []}
+async function loadNews(f){if(!f&&Date.now()-N.at<3e5&&N.items.length)return N.items;
+ let it=[];try{it=(await j('data/news.json?'+Date.now())).items||[]}catch(e){}
+ if(!it.length){const r=await Promise.allSettled(Object.entries(SRC).map(async([k,[n,u]])=>(await feed(u)).map(i=>({...i,s:n,k}))));it=r.flatMap(x=>x.value||[])}
+ if(!it.length){const d=new Date().toISOString();it=['Stocks rally as inflation cools and the Fed hints at a rate cut','Oil prices tumble on recession fears','Tech earnings beat expectations, Nasdaq hits record high','Bitcoin swings as crypto traders weigh new tariff news','Retailer announces layoffs to cut costs after weak quarter','Company IPO surges in debut as investors look for growth'].map(t=>({t,l:'#',d,s:b('Ejemplo','Example'),k:'demo'}))}
+ if(it.length){N.items=it.sort((a,c)=>dt(c.d)-dt(a.d));N.at=Date.now()}return N.items}
+const allQ=()=>[...(Q.ix||[]),...(Q.st||[]),...(Q.etf||[]),...(Q.cr||[]),...(Q.fx||[])];
+const movers=n=>allQ().filter(q=>!q.fx&&q.t!=='i'&&q.p>=1).sort((a,c)=>c.ch-a.ch).slice(0,n);
+function alertFavs(){if(!S.alerts)return;allQ().forEach(q=>{if(!S.favs.includes(q.id)||q.p==null)return;const o=S.prev[q.id];if(o&&Math.abs(q.p/o-1)>=.02){toast(q.n+': '+((q.p/o-1)*100).toFixed(1)+'%');jingle(q.p>o)}S.prev[q.id]=q.p});save()}
+const ago=d=>{const m=(Date.now()-dt(d))/6e4;return m<60?Math.max(1,m|0)+' min':m<1440?(m/60|0)+' h':(m/1440|0)+' d'};
+/* conceptos: [es,en,defES,defEN,regex titulares] */
+const G=[
+['Inflación','Inflation','Los precios suben con el tiempo y tu dinero compra menos.','Prices rise over time, so your money buys less.','inflation|\\bcpi\\b'],
+['Tasa de interés','Interest rate','Costo de pedir prestado o premio por ahorrar. Cuando sube, las acciones suelen sufrir.','The cost of borrowing or the reward for saving. When it rises, stocks often suffer.','interest|rate cut|rate hike|rates\\b'],
+['La Fed','The Fed','Banco central de EE.UU. Fija la tasa de referencia.','The US central bank. It sets the benchmark rate.','\\bfed\\b|federal reserve|powell'],
+['PIB','GDP','Todo lo que produce un país en un año. Si crece, las empresas venden más.','Everything a country produces in a year. If it grows, companies sell more.','\\bgdp\\b|economic growth'],
+['Recesión','Recession','La economía se encoge por varios meses: menos empleo, ventas y ganancias.','The economy shrinks for months: fewer jobs, sales and profits.','recession'],
+['Arancel','Tariff','Impuesto a productos que vienen de otro país. Encarece lo importado.','A tax on imported goods. It makes them more expensive.','tariff|trade war'],
+['Acción','Stock','Un pedazo de una empresa. Si la empresa crece, tu pedazo vale más.','A slice of a company. If the company grows, your slice is worth more.','stocks?\\b|shares?\\b'],
+['Capitalización de mercado','Market cap','Precio por acción x número de acciones. Lo que el mercado dice que vale la empresa.','Share price x number of shares. What the market says the company is worth.','market cap|valuation'],
+['P/E (precio/utilidad)','P/E ratio','Cuántos años de ganancias pagas hoy. Menos de 15 suele ser barato; más de 30 exige mucho crecimiento.','How many years of earnings you pay today. Under 15 is often cheap; over 30 demands strong growth.','p/e|price-to-earnings'],
+['Precio/ventas','Price-to-sales','Valor de mercado entre ingresos. Útil cuando la empresa aún no gana dinero.','Market cap divided by revenue. Useful when a company is not yet profitable.',''],
+['PEG','PEG ratio','P/E dividido entre el crecimiento. Menor a 1 sugiere precio justo para lo que crece.','P/E divided by growth. Under 1 suggests a fair price for the growth.',''],
+['Margen neto','Net margin','Utilidad neta / ingresos. Cuánto te queda de cada 100 vendidos.','Net income / revenue. How much you keep from every 100 sold.','\\bmargins?\\b|profit'],
+['Margen operativo','Operating margin','Utilidad operativa / ingresos. Mide qué tan eficiente es el negocio antes de impuestos e intereses.','Operating income / revenue. Shows how efficient the business is before taxes and interest.',''],
+['ROE (retorno sobre capital)','ROE','Utilidad neta / capital contable. Qué tanto rinde el dinero de los dueños. Más de 15% es muy bueno.','Net income / equity. How hard the owners money works. Above 15% is very good.',''],
+['Deuda / capital','Debt-to-equity','Deuda / capital contable. Menor a 1 es sano; una deuda alta pesa cuando suben las tasas.','Debt / equity. Under 1 is healthy; heavy debt hurts when rates rise.','debt'],
+['Razón corriente','Current ratio','Activos corrientes / pasivos corrientes. Mayor a 1.5 indica que paga sus cuentas del año.','Current assets / current liabilities. Above 1.5 means it can pay this year bills.',''],
+['Flujo de caja libre','Free cash flow','Efectivo que sobra tras operar e invertir. Es el dinero real que puede repartir o reinvertir.','Cash left after operating and investing. The real money it can pay out or reinvest.','cash flow'],
+['DCF (flujo descontado)','DCF','Estima cuánto vale una empresa hoy sumando su efectivo futuro traído a valor presente.','Estimates what a company is worth today by adding future cash brought to present value.',''],
+['Margen de seguridad','Margin of safety','Diferencia entre el valor estimado y el precio. Comprar con 25% o más de descuento te protege de errores.','The gap between estimated value and price. Buying 25% or more below protects you from mistakes.',''],
+['Rendimiento por dividendo','Dividend yield','Dividendo anual / precio. Lo que te paga la empresa por tener sus acciones.','Annual dividend / price. What the company pays you for owning its stock.','dividend'],
+['EBITDA','EBITDA','Ganancia antes de intereses, impuestos, depreciación y amortización. Sirve para comparar empresas.','Earnings before interest, taxes, depreciation and amortization. Used to compare companies.','ebitda|earnings'],
+['Ventaja competitiva','Moat','Algo que protege a la empresa de rivales: marca, patentes, escala. Sin eso, las ganancias se erosionan.','Something that shields a company from rivals: brand, patents, scale. Without it, profits erode.',''],
+['Diversificación','Diversification','No poner todo en una sola cosa. Baja el riesgo de perderlo todo.','Not putting everything in one place. It lowers the risk of losing it all.','\\betfs?\\b'],
+['Volatilidad','Volatility','Qué tanto sube y baja un precio de golpe.','How much a price jumps up and down.','volatil|swings?\\b'],
+['Mercado alcista y bajista','Bull and bear market','Alcista: precios suben y hay optimismo. Bajista: caen 20% o más desde su máximo.','Bull: prices rise with optimism. Bear: prices fall 20% or more from their peak.','bull|bear|rally|plunge|sell-?off|tumble|record high'],
+['Bono','Bond','Préstamo que haces a un gobierno o empresa y te paga intereses. Los CETES son bonos de México.','A loan you make to a government or company that pays you interest. CETES are Mexican bonds.','bond|treasur|yield|cetes'],
+['Interés compuesto','Compound interest','Ganas intereses sobre tus intereses. El tiempo es el ingrediente clave.','You earn interest on your interest. Time is the key ingredient.',''],
+['Fusión','Merger','Dos empresas se unen, o una compra a la otra.','Two companies join, or one buys the other.','merger|acquir|acquisition|buyout'],
+['IPO','IPO','Cuando una empresa vende sus acciones al público por primera vez.','When a company sells shares to the public for the first time.','\\bipo\\b|goes public']];
+const gi=n=>G.findIndex(g=>g[1]===n);
+const chips=ti=>G.map((g,i)=>[i,g]).filter(([i,g])=>g[4]&&new RegExp(g[4],'i').test(ti)).slice(0,2).map(([i,g])=>`<button class="ch" data-a="term" data-i="${i}">${esc(g[lg()])}</button>`).join('');
+const TIPS=[['Págate primero: ahorra antes de gastar.','Pay yourself first: save before you spend.'],['El interés compuesto trabaja mejor mientras más tiempo lo dejas.','Compound interest works best the longer you leave it.'],['No pongas todo tu dinero en una sola acción.','Do not put all your money in one stock.'],['Si no entiendes en qué inviertes, todavía no inviertas.','If you do not understand it, do not invest yet.'],['Un buen negocio vende por más de lo que le cuesta.','A good business sells for more than it costs.']];
+/* piezas */
+function toast(x){const e=$('#toast');e.textContent=x;e.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.display='none',3500)}
+function modal(h){$('#mc').innerHTML=h+`<p><button class="b" data-a="close">${b('Cerrar','Close')}</button></p>`;$('#m').style.display='flex'}
+const fmt=q=>q.p==null?'—':(q.p>=100?q.p.toLocaleString('en-US',{maximumFractionDigits:2}):q.p.toPrecision(4));
+const row=(q,pub)=>`<div class="row"><div>${q.fx?`<b>${esc(q.n)}</b>`:`<b class="lk" data-a="chart" data-id="${esc(q.id)}" data-n="${esc(q.n)}">${esc(q.n)}</b>`}<br><small class="mu">${esc(q.sub)}</small>${pub===true&&(q.t==='s'||q.t==='e')?` <a class="ch" href="https://public.com/stocks/${esc(q.sub.toLowerCase())}" target="_blank" rel="noopener">Public</a>`:''}</div><div class="r num"><b>${fmt(q)}</b>${q.fx?'':`<br><span class="${q.ch>=0?'up':'dn'}">${q.ch>=0?'+':'−'}${Math.abs(q.ch).toFixed(2)}%</span>`}</div><button class="st" data-a="fav" data-id="${esc(q.id)}" aria-label="${b('Seguir','Follow')}">${ico('star',20,S.favs.includes(q.id))}</button></div>`;
+const mood=t=>/surge|rally|jump|gain|record|soar|beat|rise/i.test(t)?'up':/fall|drop|plunge|slump|loss|cut|fear|slide|tumble|crash/i.test(t)?'dn':'';
+const nrow=n=>{const m=n.m||mood(n.t),e=n.e&&n.e[S.lang==='en'?'en':'es'],gx=!e&&G.find(g=>g[4]&&new RegExp(g[4],'i').test(n.t));return `<a class="it" href="${esc(n.l)}" target="_blank" rel="noopener"><small class="mu">${esc(n.s)} · ${ago(n.d)}</small><br>${esc(n.t)}</a>${e?`<p class="kid">${esc(e)}</p>`:gx?`<p class="kid">${b('Palabra clave','Key word')}: <b>${gx[lg()]}</b>. ${gx[2+lg()]}</p>`:''}<div>${m?`<small class="${m==='up'?'up':'dn'}">${m==='up'?b('Suena bien para el precio','Sounds good for the price'):b('Suena mal para el precio','Sounds bad for the price')}</small> `:''}${chips(n.t)}</div>`}
+function usOpen(){const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'numeric',minute:'numeric',hour12:false}).formatToParts(new Date()),g=k=>p.find(x=>x.type===k).value,m=(+g('hour')%24)*60+ +g('minute');return !['Sat','Sun'].includes(g('weekday'))&&m>=570&&m<960}
+const sel=(a,v,k,l)=>`<div class="chips">${l.map((x,i)=>`<button class="b ${v==a[i]?'on':''}" data-a="${k}" data-v="${a[i]}">${x}</button>`).join('')}</div>`;
+const inp=(id,l,v,t='number')=>`<label for="${id}">${l}</label><input id="${id}" type="${t}" step="any" value="${v}" inputmode="${t==='number'?'decimal':'text'}">`;
+const PX={},getPx=async t=>{const q=allQ().find(x=>x.id===t);if(q&&q.p!=null)return q.p;return (await yj('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(t)+'?interval=1d&range=1d')).chart.result[0].meta.regularMarketPrice};
+let CH=[];
+const chatHTML=()=>`<div class="card wide"><h2>${b('Asistente','Assistant')}</h2><div id="cl">${(CH.length?CH:[['bot',b('Hola. Pregúntame qué es un concepto, cómo va el mercado, qué pasó hoy, o escribe "analiza AAPL". Después de analizar una empresa te digo si es rentable.','Hi. Ask me what a concept means, how the market is doing, what happened today, or type "analyze AAPL". After you analyze a company I will tell you if it is profitable.')]]).map(m=>`<p class="${m[0]==='me'?'me':'kid'}">${m[1]}</p>`).join('')}</div><div class="chips">${[b('¿Es rentable?','Is it profitable?'),b('¿Qué es el P/E?','What is P/E?'),b('¿Cómo va el mercado?','How is the market?'),b('¿Qué pasó hoy?','What happened today?')].map(x=>`<button class="b" data-a="askq" data-v="${esc(x)}">${x}</button>`).join('')}</div><input id="cq" placeholder="${b('Escribe tu pregunta…','Type your question…')}" aria-label="${b('Pregunta','Question')}"><button class="b on" data-a="ask">${b('Enviar','Send')}</button></div>`;
+function reply(q){
+ const t=q.toLowerCase(),w=' '+t.replace(/[^a-z0-9áéíóúñ\/&% ]/g,' ')+' ',m=q.match(/anali[zy]\w*\s+([a-z.\-]{1,20})\b/i);
+ if(m&&!['esta','una','this','the','mi','my','la','el','un'].includes(m[1].toLowerCase())){const T=m[1].toUpperCase();STK=resolve(T);tab='sim';render();return b('Te llevé a Analizar y estoy cargando los datos de '+esc(T)+'.','I took you to Analyze and I am loading '+esc(T)+' data.')}
+ if(/rentable|convien|vale la pena|invertir|comprar|profitable|worth|should i|buy|invest/.test(t)){
+  if(!LAST)return b('Primero analiza una empresa: escribe "analiza AAPL" o ve a Analizar. Luego te digo qué veo.','First analyze a company: type "analyze AAPL" or go to Analyze. Then I will tell you what I see.');
+  const g=n=>(LAST.R.find(x=>x[0]===n)||[])[2],pr=g('Net margin')>=1&&g('ROE')>=1,an=LAST.an&&LAST.an.rec?' '+b('Los analistas dicen','Analysts say')+': '+esc(LAST.an.rec)+'.':'';
+  return `<b>${esc(LAST.tk)}</b>: ${LAST.vd}. ${pr?b('Sí gana buen dinero: sus márgenes y su ROE están bien.','Yes, it earns good money: its margins and ROE look good.'):b('Gana poco o faltan datos para decir que es muy rentable.','It earns little, or there is not enough data to call it very profitable.')}${LAST.gd.length?' '+b('Fuerte en','Strong on')+': '+LAST.gd.join(', ')+'.':''}${LAST.bd.length?' '+b('Débil en','Weak on')+': '+LAST.bd.join(', ')+'.':''}${an} ${b('No es consejo de inversión: revisa también su industria y no inviertas dinero que necesites pronto.','This is not investment advice: also check its industry and do not invest money you need soon.')}`}
+ if(/noticia|pas[oó]|news|happened|hoy|today/.test(t)){const it=N.items.slice(0,3);return it.length?it.map(n=>'• '+esc((n.e&&n.e[S.lang==='en'?'en':'es'])||n.t)).join('<br>'):b('Aún no cargan las noticias. Toca actualizar.','News have not loaded yet. Tap refresh.')}
+ if(/mercado|bolsa|market|s&p|nasdaq|dow/.test(t)){const x=(Q.ix||[]).slice(0,3).filter(q=>q.p!=null);return x.length?x.map(q=>esc(q.n)+': '+fmt(q)+' ('+(q.ch>=0?'+':'−')+Math.abs(q.ch).toFixed(2)+'%)').join('<br>')+'<br>'+(x.filter(q=>q.ch>0).length>=2?b('Hoy el mercado va hacia arriba.','The market is mostly up today.'):b('Hoy el mercado va flojo.','The market is soft today.')):b('Aún no cargan los precios.','Prices have not loaded yet.')}
+ const gg=G.find(g=>w.includes(' '+g[0].toLowerCase().split(' (')[0]+' ')||w.includes(' '+g[1].toLowerCase()+' '));
+ if(gg)return `<b>${gg[lg()]}</b>: ${gg[2+lg()]}`;
+ if(/simul|practic|paper|demo/.test(t))return b('En Simular tienes $10,000 de mentiritas para comprar y vender sin riesgo, y una máquina del tiempo.','In Simulate you get $10,000 of play money to buy and sell with no risk, plus a time machine.');
+ if(/diversific|cuánto|cuanto|riesgo|risk|ahorr|save/.test(t))return b('Regla simple: primero un fondo de emergencia (3 a 6 meses de gastos). Invierte solo lo que no necesites pronto, reparte entre varias empresas o un ETF, y practica en el Simulador antes de usar dinero real.','Simple rule: first an emergency fund (3 to 6 months of expenses). Invest only what you will not need soon, spread across several companies or an ETF, and practice in the Simulator before using real money.');
+ return b('No estoy seguro. Prueba: "qué es el ROE", "cómo va el mercado", "qué pasó hoy" o "analiza AAPL".','Not sure. Try: "what is ROE", "how is the market", "what happened today" or "analyze AAPL".')}
+const AF=[['tk',['Empresa o símbolo (ej. Apple)','Company or ticker (e.g. Apple)'],'','text'],['price',['Precio por acción','Share price'],''],['eps',['Utilidad por acción (EPS)','Earnings per share (EPS)'],''],['shares',['Acciones en circulación (millones)','Shares outstanding (millions)'],''],['rev',['Ingresos anuales (millones)','Annual revenue (millions)'],''],['op',['Utilidad operativa (millones)','Operating income (millions)'],''],['ni',['Utilidad neta (millones)','Net income (millions)'],''],['fcf',['Flujo de caja libre (millones)','Free cash flow (millions)'],''],['debt',['Deuda total (millones)','Total debt (millions)'],''],['cash',['Efectivo (millones)','Cash (millions)'],''],['eq',['Capital contable (millones)','Shareholder equity (millions)'],''],['ca',['Activos corrientes (millones)','Current assets (millions)'],''],['cl',['Pasivos corrientes (millones)','Current liabilities (millions)'],''],['dv',['Dividendo anual por acción','Annual dividend per share'],''],['g',['Crecimiento anual esperado (%)','Expected yearly growth (%)'],8],['r',['Tasa de descuento (%)','Discount rate (%)'],10]];
+/* vistas */
+const V={
+async sim(){
+ const P=S.sim.pos,ks=Object.keys(P);
+ await Promise.all(ks.map(async k=>{try{PX[k]=await getPx(k)}catch(e){}}));
+ if(tab!=='sim')return;
+ const val=ks.reduce((a,k)=>a+P[k].q*(PX[k]||P[k].c/P[k].q),0),tot=S.sim.cash+val,pl=tot-10000;
+ $('#v').innerHTML=`<div class="g"><div class="card"><h2>${b('Mercado de simulación','Simulation market')}</h2>${inp('a_tk',b('Empresa, ETF o cripto (ej. Apple)','Company, ETF or crypto (e.g. Apple)'),esc(STK),'text')}<datalist id="ul">${UNI.map(u=>`<option value="${esc(u[1])}">${esc(u[0])}</option>`).join('')}</datalist><div id="tc"><p class="mu">${b('Escribe una empresa y toca fuera del cuadro. Verás las velas aquí y la evaluación al lado.','Type a company and tap outside the box. You will see the candles here and the evaluation beside it.')}</p></div>${inp('sa',b('Cuánto ($)','Amount ($)'),1000)}<button class="b on" data-a="buy">${b('Comprar','Buy')}</button> <button class="b" data-a="sellcur">${b('Vender','Sell')}</button></div>
+ <div class="card" id="ar"><h2>${b('Evaluación','Evaluation')}</h2><p class="mu">${b('Aquí aparece si conviene invertir, con cada concepto explicado.','Here you will see whether investing makes sense, with each concept explained.')}</p></div></div>
+ <details class="card" style="margin-bottom:16px"><summary>${b('Datos de la empresa (se llenan solos; puedes editarlos)','Company data (filled in automatically; you can edit)')}</summary>${AF.filter(f=>f[0]!=='tk').map(f=>inp('a_'+f[0],f[1][lg()],f[2])).join('')}<button class="b on" data-a="calc">${b('Analizar','Analyze')}</button></details>
+ <div class="g"><div class="card"><small class="mu">${b('Valor total (dinero de mentiritas)','Total value (play money)')}</small><div class="big num">$${tot.toLocaleString('en-US',{maximumFractionDigits:0})}</div><span class="num ${pl>=0?'up':'dn'}">${pl>=0?'+':'−'}$${Math.abs(pl).toFixed(0)}</span> <small class="mu">${b('Efectivo','Cash')}: $${S.sim.cash.toFixed(0)}</small><p><button class="b" data-a="simreset">${b('Reiniciar','Reset')}</button></p></div>
+ <div class="card"><h2>${b('Tus acciones','Your holdings')}</h2>${ks.length?ks.map(k=>{const v=P[k].q*(PX[k]||P[k].c/P[k].q),d=v-P[k].c;return `<div class="row"><div><b>${esc(k)}</b><br><small class="mu num">${P[k].q.toFixed(3)} ${b('acciones','shares')}</small></div><div class="r num"><b>$${v.toFixed(2)}</b><br><span class="${d>=0?'up':'dn'}">${d>=0?'+':'−'}$${Math.abs(d).toFixed(2)}</span></div><button class="b" data-a="sell" data-id="${esc(k)}">${b('Vender','Sell')}</button></div>`}).join(''):`<p class="mu">${b('Aún no compras nada. Empieza con $10,000 de mentiritas.','You own nothing yet. Start with $10,000 of play money.')}</p>`}</div></div>
+ <div class="card"><h2>${b('Máquina del tiempo','Time machine')}</h2>${inp('tt',b('Símbolo','Ticker'),'AAPL','text')}${inp('ta',b('Cuánto habrías invertido ($)','Amount you would have invested ($)'),1000)}<label for="ty">${b('Hace cuántos años','How many years ago')}</label><select id="ty"><option>1</option><option>3</option><option selected>5</option><option>10</option></select><button class="b on" data-a="tm">${b('Ver','Show')}</button><p id="to" class="kid"></p></div>`;
+ const e=$('#a_tk');e.setAttribute('list','ul');e.onchange=A.auto;if(STK)A.auto({quiet:1})},
+async hoy(){
+ const ix=(Q.ix||[]).slice(0,3),fv=allQ().filter(q=>S.favs.includes(q.id));
+ let nw;try{nw=(await loadNews()).slice(0,5).map(nrow).join('')||`<p class="mu">${b('Sin noticias por ahora.','No news right now.')}</p>`}catch(e){nw=`<p class="mu">${b('No se pudo cargar. Revisa tu conexión.','Could not load. Check your connection.')}</p>`}
+ if(tab!=='hoy')return;
+ $('#v').innerHTML=`<div class="g">${ix.length?ix.map(q=>`<div class="card"><small class="mu">${esc(q.n)}</small><div class="big num">${fmt(q)}</div><span class="num ${q.ch>=0?'up':'dn'}">${q.ch>=0?'+':'−'}${Math.abs(q.ch).toFixed(2)}%</span></div>`).join(''):`<div class="card wide mu">${b('Sin datos de mercado todavía. En la vista previa de Claude no cargan; ábrelo desde tu página de GitHub.','No market data yet. It does not load in the Claude preview; open it from your GitHub page.')}</div>`}</div>
+ <div class="card" style="margin-bottom:16px"><h2>${b('Los que más suben','Top gainers')}</h2><small class="mu">${b('De los más populares. Toca el nombre para ver velas y evaluarla; toca Public para abrirla en el broker.','From the most popular. Tap the name for candles and evaluation; tap Public to open it in the broker.')}</small>${movers(8).map(q=>row(q,true)).join('')||`<p class="mu">—</p>`}</div>
+ <div class="g"><div class="card"><h2>${b('Tu lista','Your watchlist')}</h2>${fv.length?fv.map(row).join(''):`<p class="mu">${b('Toca la estrella en Mercados para seguir activos.','Tap the star in Markets to follow assets.')}</p>`}</div>
+ <div class="card"><h2>${b('Consejo del día','Tip of the day')}</h2><p>${TIPS[new Date().getDate()%TIPS.length][lg()]}</p><p class="mu">${b('Racha de visitas','Visit streak')}: ${S.streak} ${b('días','days')}</p></div></div>
+ <div class="card"><h2>${b('Lo más reciente','Latest')}</h2>${nw}</div>`},
+mk(){
+ const f0={all:allQ(),up:movers(30),ix:Q.ix||[],st:Q.st||[],etf:Q.etf||[],cr:Q.cr||[],fx:Q.fx||[],mine:allQ().filter(q=>S.favs.includes(q.id))}[mkf],m=mq.toLowerCase(),f=m?f0.filter(q=>(q.n+q.sub).toLowerCase().includes(m)):f0;
+ $('#v').innerHTML=`<div class="card"><h2>${b('Mercados','Markets')}</h2><small class="mu">${usOpen()?b('Mercado de EE.UU. abierto','US market open'):b('Mercado de EE.UU. cerrado','US market closed')} · ${allQ().length} ${b('activos','assets')}</small>${sel(['all','up','ix','st','etf','cr','fx','mine'],mkf,'mkf',[b('Todo','All'),b('Más suben','Top gainers'),b('Índices','Indices'),b('Acciones','Stocks'),'ETF','Cripto',b('Divisas','FX'),b('Mi lista','Mine')])}<input id="mq" placeholder="${b('Buscar…','Search…')}" value="${esc(mq)}" aria-label="${b('Buscar','Search')}">${Q.st?(f.length?f.slice(0,80).map(r=>row(r,mkf==='up')).join('')+(f.length>80?`<p class="mu">${b('Mostrando 80. Usa el buscador.','Showing 80. Use search.')}</p>`:''):`<p class="mu">—</p>`):`<p class="mu">${b('Cargando…','Loading…')}</p>`}</div>`;
+ $('#mq').oninput=e=>{mq=e.target.value;const p=mq.length;V.mk();const i=$('#mq');i.focus();i.setSelectionRange(p,p)}},
+async nw(){
+ $('#v').innerHTML=`<div class="card"><h2>${b('Noticias','News')}</h2>${sel(['all',...Object.keys(SRC)],nws,'nws',[b('Todas','All'),...Object.values(SRC).map(x=>x[0])])}<input id="q" placeholder="${b('Buscar…','Search…')}" value="${esc(nwq)}" aria-label="${b('Buscar','Search')}"><div id="nl"><p class="mu">${b('Cargando…','Loading…')}</p></div></div>`;
+ let it=[];const fill=()=>{const r=it.filter(n=>(nws==='all'||n.k===nws)&&n.t.toLowerCase().includes(nwq.toLowerCase()));$('#nl').innerHTML=r.map(nrow).join('')||`<p class="mu">${b('No cargaron las noticias (en la vista previa de Claude no cargan; usa tu página de GitHub).','News did not load (they do not load in the Claude preview; use your GitHub page).')} <button class="b" data-a="refresh">${b('Reintentar','Retry')}</button></p>`};
+ $('#q').oninput=e=>{nwq=e.target.value;fill()};
+ try{it=await loadNews();if(tab==='nw')fill()}catch(e){$('#nl').innerHTML=`<p class="mu">${b('No se pudo cargar.','Could not load.')}</p>`}},
+ln(){
+ const q=gq.toLowerCase(),L=G.map((g,i)=>[i,g]).filter(([i,g])=>(g[0]+g[1]+g[2]+g[3]).toLowerCase().includes(q));
+ $('#v').innerHTML=chatHTML()+`<div class="g"><div class="card"><h2>${b('Interés compuesto','Compound interest')}</h2>${inp('c1',b('Dinero inicial','Starting money'),1000)}${inp('c2',b('Aporte mensual','Monthly deposit'),100)}${inp('c3',b('Rendimiento anual (%)','Yearly return (%)'),8)}${inp('c4',b('Años','Years'),10)}<button class="b on" data-a="ci">${b('Calcular','Calculate')}</button><p class="big num" id="co"></p></div>
+ <div class="card"><h2>${b('Pon a prueba tus conceptos','Test your concepts')}</h2><p class="mu">${b('Adivina el término a partir de su definición.','Guess the term from its definition.')}</p><button class="b on" data-a="quiz">${b('Empezar quiz','Start quiz')}</button></div></div>
+ <div class="card"><h2>${b('Glosario','Glossary')}</h2><input id="gq" placeholder="${b('Buscar concepto…','Search concept…')}" value="${esc(gq)}" aria-label="${b('Buscar','Search')}"><div id="gl">${L.map(([i,g])=>`<div class="row"><div><b>${g[lg()]}</b><br><small class="mu">${g[2+lg()]}</small></div></div>`).join('')}</div></div>`;
+ $('#gq').oninput=e=>{gq=e.target.value;const f=document.activeElement;V.ln();$('#gq').focus();$('#gq').setSelectionRange(gq.length,gq.length)}}
+};
+function render(){
+ const th=TH[S.theme],r=document.documentElement.style;['bg','card','tx','mu','ac','ln','up','dn'].forEach((k,i)=>r.setProperty('--'+k,th[i+1]));r.setProperty('--fs',16*S.size+'px');
+ $('#dock').innerHTML=TB.map(x=>`<button class="${x[0]===tab?'on':''}" data-a="tab" data-v="${x[0]}" aria-label="${x[2][lg()]}">${ico(x[1],22)}${x[2][lg()]}</button>`).join('');
+ $('#rf').innerHTML=ico('rf');$('#sg').innerHTML=ico('sl');
+ $('#sub').textContent=new Date().toLocaleDateString(S.lang==='en'?'en-US':'es-MX',{weekday:'long',day:'numeric',month:'long'})+(N.at?' · '+b('Actualizado','Updated')+' '+new Date(N.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'')+(DEMO?' · '+b('MODO DEMO: datos inventados para probar','DEMO MODE: made-up data for testing'):'');
+ V[tab]();if(tab==='ln'){const c=$('#cl');if(c)c.scrollTop=c.scrollHeight}}
+/* analizador */
+function calc(){
+ const v=k=>parseFloat($('#a_'+k).value),p=v('price'),sh=v('shares'),mc=p*sh,R=[];
+ const gr=(x,g,o,low)=>low?(x<g?2:x<o?1:0):(x>g?2:x>o?1:0);
+ const add=(n,x,f,g,o,low)=>{if(isFinite(x))R.push([n,f(x),gr(x,g,o,low)])};
+ const pc=x=>x.toFixed(1)+'%',xs=x=>x.toFixed(2)+'x';
+ if(v('eps')<=0)R.push(['P/E ratio','—',0]);else add('P/E ratio',p/v('eps'),x=>x.toFixed(1)+'x',15,25,1);
+ add('Price-to-sales',mc/v('rev'),xs,2,5,1);
+ add('Operating margin',v('op')/v('rev')*100,pc,20,10);
+ add('Net margin',v('ni')/v('rev')*100,pc,15,7);
+ add('ROE',v('ni')/v('eq')*100,pc,15,8);
+ add('Debt-to-equity',v('debt')/v('eq'),xs,.5,1.5,1);
+ add('Current ratio',v('ca')/v('cl'),xs,1.5,1);
+ add('Free cash flow',v('fcf')/mc*100,x=>pc(x)+' '+b('del valor','of value'),5,2);
+ if(v('eps')>0&&v('g')>0)add('PEG ratio',p/v('eps')/v('g'),xs,1,2,1);
+ add('Dividend yield',v('dv')/p*100,pc,2,.5);
+ const f0=v('fcf'),g=Math.min(v('g'),25)/100,r=v('r')/100;
+ if(f0>0&&sh>0&&isFinite(g*r)&&r>.025){let s=0,f=f0;for(let i=1;i<=10;i++){f*=1+g;s+=f/Math.pow(1+r,i)}const tv=f*1.025/(r-.025)/Math.pow(1+r,10),iv=(s+tv+(v('cash')||0)-(v('debt')||0))/sh,mos=(iv-p)/iv*100;
+  if(isFinite(mos)){R.push(['DCF','$'+iv.toFixed(2),gr(mos,25,0)]);R.push(['Margin of safety',pc(mos),gr(mos,25,0)])}}
+ if(!R.length){$('#ar').innerHTML=`<h2>${b('Resultado','Result')}</h2><p class="mu">${b('Faltan datos: empieza con precio, EPS, ingresos y utilidad neta.','Missing data: start with price, EPS, revenue and net income.')}</p>`;return}
+ const sc=R.reduce((a,x)=>a+x[2],0)/(R.length*2),vd=sc>=.7?[b('Atractiva: vale la pena estudiarla más','Attractive: worth studying further'),'up']:sc>=.45?[b('Mixta: tiene puntos fuertes y débiles','Mixed: it has strengths and weaknesses'),'']:[b('Cara o débil con estos datos','Expensive or weak on this data'),'dn'];
+ const lb=[b('Alerta','Warning'),b('Regular','Fair'),b('Bien','Good')],cl=['dn','','up'];
+ const nm=x=>G[gi(x[0])][lg()],gd=R.filter(x=>x[2]==2).map(nm),bd=R.filter(x=>x[2]==0).map(nm),tk=$('#a_tk').value.trim().toLowerCase();LAST={tk:tk.toUpperCase(),R,sc,vd:vd[0],gd,bd,an:AN&&AN.an,p};
+ const RK={strong_buy:b('Compra fuerte','Strong buy'),buy:b('Compra','Buy'),hold:b('Mantener','Hold'),underperform:b('Rinde menos','Underperform'),sell:b('Vender','Sell')},up=AN&&AN.an&&AN.an.target?(AN.an.target/p-1)*100:null;
+ const an=AN&&AN.an&&AN.an.rec?`<h2>${b('¿Qué dicen los analistas?','What do analysts say?')}</h2><p>${b('Opinan','They say')}: <b>${RK[AN.an.rec]||esc(AN.an.rec)}</b> (${AN.an.n||'?'} ${b('analistas','analysts')}).${up!=null?' '+b('Precio objetivo','Target price')+': <b class="num">$'+(+AN.an.target).toFixed(2)+'</b> ('+(up>=0?'+':'')+up.toFixed(1)+'%).':''}</p>`:'';
+ const ai=AN&&AN.ai?`<h2>${b('Opinión de la IA','AI opinion')}</h2><p class="kid">${esc(AN.ai[S.lang==='en'?'en':'es'])}</p>`:'';
+ $('#ar').innerHTML=`<h2>${b('Resultado','Result')}</h2><p class="big ${vd[1]}" style="font-size:1.7em">${vd[0]}</p><p class="mu num">${b('Puntaje','Score')}: ${Math.round(sc*100)}/100</p>
+ <p class="kid">${b('En palabras simples: comprar una acción es comprar un pedacito de una tienda. ','In simple words: buying a stock is buying a small piece of a shop. ')}${gd.length?b('Va bien en: ','Doing well on: ')+gd.join(', ')+'. ':''}${bd.length?b('Ojo con: ','Watch out for: ')+bd.join(', ')+'.':''}</p>${ai}${an}
+ ${R.map(x=>`<div class="row"><div><b>${G[gi(x[0])][lg()]}</b><br><button class="ch" data-a="term" data-i="${gi(x[0])}">${b('¿Qué es?','What is it?')}</button></div><div class="r num"><b>${x[1]}</b><br><span class="${cl[x[2]]}">${lb[x[2]]}</span></div></div>`).join('')}
+ <p class="mu"><small>${b('Es una guía educativa, no una recomendación de inversión. Revisa también la ventaja competitiva, la industria y los riesgos.','This is an educational guide, not investment advice. Also review the moat, the industry and the risks.')}</small></p>${tk?`<p><a class="b" href="https://public.com/stocks/${esc(tk)}" target="_blank" rel="noopener">${b('Ver en Public','View on Public')}</a></p>`:''}`;jingle(sc>=.7)}
+let AN=null,LAST=null,CD=null;
+const resolve=x=>{x=String(x).trim().toLowerCase();if(!x)return null;const u=UNI.find(u=>u[0].toLowerCase()===x)||UNI.find(u=>u[1].toLowerCase()===x)||UNI.find(u=>u[1].toLowerCase().includes(x));return u?u[0]:x.toUpperCase()};
+async function candles(s){try{if(!CD)CD=await j('data/candles.json?'+Date.now())}catch(e){CD={}}
+ if(CD[s])return CD[s];if(DEMO)return CD[s]=demoCandles(s);
+ const r=(await yj('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(s)+'?interval=1d&range=1y')).chart.result[0],q=r.indicators.quote[0],i=r.timestamp.map((_,k)=>k).filter(k=>q.close[k]!=null&&q.open[k]!=null);
+ return CD[s]={t:i.map(k=>r.timestamp[k]),o:i.map(k=>q.open[k]),h:i.map(k=>q.high[k]),l:i.map(k=>q.low[k]),c:i.map(k=>q.close[k])}}
+function svgCandles(d,n){
+ const k=Math.min(n,d.c.length),a=d.c.length-k,o=d.o.slice(a),h=d.h.slice(a),l=d.l.slice(a),c=d.c.slice(a),W=640,H=280,pad=38,mx=Math.max(...h),mn=Math.min(...l),y=v=>8+(H-30)*(1-(v-mn)/(mx-mn||1)),cw=(W-pad)/k;let g='';
+ for(let i=0;i<k;i++){const x=pad+i*cw+cw/2,col=c[i]>=o[i]?'var(--up)':'var(--dn)';g+=`<line x1="${x}" x2="${x}" y1="${y(h[i])}" y2="${y(l[i])}" stroke="${col}"/><rect x="${x-cw*.35}" y="${y(Math.max(o[i],c[i]))}" width="${cw*.7}" height="${Math.max(1,Math.abs(y(o[i])-y(c[i])))}" fill="${col}"/>`}
+ const pts=c.map((_,i)=>i<19?'':(pad+i*cw+cw/2)+','+y(c.slice(i-19,i+1).reduce((p,x)=>p+x,0)/20)).filter(Boolean).join(' '),ax=[mx,(mx+mn)/2,mn].map(v=>`<text x="2" y="${y(v)+4}" font-size="11" fill="var(--mu)">${v>=100?v.toFixed(0):v.toFixed(2)}</text>`).join('');
+ return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${b('Gráfica de velas','Candlestick chart')}">${ax}${g}<polyline points="${pts}" fill="none" stroke="var(--ac)" stroke-width="1.5"/></svg>`}
+async function asset(tk,u){
+ const q=allQ().find(x=>x.id===tk)||{ch:0},kd={e:b('Un ETF es una canasta de muchas acciones en una sola compra: reparte tu riesgo. Mira su costo anual y qué contiene.','An ETF is a basket of many stocks in one purchase: it spreads your risk. Check its yearly fee and what it holds.'),c:b('Una cripto no tiene ingresos ni utilidades, así que no se analiza como empresa. Es muy volátil: puede moverse 10% en un día. Invierte solo lo que puedas perder.','A crypto has no revenue or profit, so it is not analyzed like a company. It is very volatile: it can move 10% in a day. Invest only what you can afford to lose.'),i:b('Es un índice o materia prima: mide el mercado. Para invertir usa un ETF que lo copie.','It is an index or commodity: it measures the market. To invest, use an ETF that tracks it.')};
+ $('#ar').innerHTML=`<h2>${esc(u[1])}</h2><p class="big num">${fmt(q)}</p><p class="num ${q.ch>=0?'up':'dn'}">${q.ch>=0?'+':'−'}${Math.abs(q.ch||0).toFixed(2)}%</p><p class="kid">${kd[u[2]]}</p>`}
+async function drawChart(tk){const e=$('#tc');if(!e)return;const q=allQ().find(x=>x.id===tk);
+ e.innerHTML=`${q?`<p class="big num">${fmt(q)} <small class="${q.ch>=0?'up':'dn'}">${q.ch>=0?'+':'−'}${Math.abs(q.ch).toFixed(2)}%</small></p>`:''}<div class="chips">${[[21,'1M'],[63,'3M'],[126,'6M'],[252,'1Y']].map(x=>`<button class="b ${x[0]===CRN?'on':''}" data-a="crange" data-v="${x[0]}">${x[1]}</button>`).join('')}</div><div id="tcv" class="mu">${b('Cargando velas…','Loading candles…')}</div>`;
+ try{const d=await candles(tk);if($('#tcv'))$('#tcv').innerHTML=svgCandles(d,CRN)+`<small class="mu">${b('Verde sube, rojo baja. La línea es el promedio de 20 días.','Green up, red down. The line is the 20-day average.')}</small>`}catch(x){if($('#tcv'))$('#tcv').textContent=b('Aún no hay velas para este activo.','No candles for this asset yet.')}}
+async function auto(Q0){const qt=Q0&&Q0.quiet;
+ const el=$('#a_tk'),tk=resolve(el.value);if(!tk){toast(b('Escribe una empresa o símbolo.','Enter a company or ticker.'));return}
+ el.value=tk;AN=null;STK=tk;drawChart(tk);const u=UNI.find(x=>x[0]===tk),set=(k,x)=>{if(x!=null&&isFinite(x))$('#a_'+k).value=+(+x).toFixed(2)};
+ if(u&&u[2]!=='s'){await asset(tk,u);return}
+ if(!qt)toast(b('Buscando datos…','Looking up data…'));let n=0;
+ try{const s=(await j('data/analysis.json?'+Date.now())).stocks[tk];if(s){Object.entries(s.f).forEach(([k,x])=>set(k,x));AN=s;n=2}}catch(e){}
+ if(!n){
+  try{const q=(Q.st||[]).find(x=>x.id===tk);set('price',q&&q.p!=null?q.p:(await yj('https://query1.finance.yahoo.com/v8/finance/chart/'+tk+'?interval=1d&range=1d')).chart.result[0].meta.regularMarketPrice);n++}catch(e){}
+  try{const T={eps:'trailingDilutedEPS',rev:'trailingTotalRevenue',op:'trailingOperatingIncome',ni:'trailingNetIncome',fcf:'trailingFreeCashFlow',debt:'quarterlyTotalDebt',cash:'quarterlyCashAndCashEquivalents',eq:'quarterlyStockholdersEquity',ca:'quarterlyCurrentAssets',cl:'quarterlyCurrentLiabilities',shares:'quarterlyOrdinarySharesNumber'},r=(await yj('https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/'+tk+'?type='+Object.values(T).join(',')+'&merge=false&padTimeSeries=true&period1=1600000000&period2='+((Date.now()/1e3|0)+86400))).timeseries.result,o={};
+   r.forEach(x=>{const k=x.meta.type[0],a=(x[k]||[]).filter(z=>z&&z.reportedValue);if(a.length)o[k]=a[a.length-1].reportedValue.raw});
+   Object.entries(T).forEach(([k,v])=>set(k,o[v]==null?null:(k==='eps'?o[v]:o[v]/1e6)));n++}catch(e){}}
+ if(DEMO){const R=rnd(hs(tk)),q=(Q.st||[]).find(x=>x.id===tk),p=q?q.p:100,rev=5000+R()*300000,ni=rev*(.04+R()*.26),eps=p/(10+R()*30);[['price',p],['eps',eps],['shares',ni/eps],['rev',rev],['op',ni*1.3],['ni',ni],['fcf',ni*.9],['debt',rev*R()*.6],['cash',rev*.15],['eq',rev*.5],['ca',rev*.4],['cl',rev*(.15+R()*.2)]].forEach(([k,x])=>set(k,x));n=1}
+ if(n){calc();if(!qt)toast(b('Listo. Revisa los datos.','Done. Review the data.'))}else if(!qt)toast(b('No pude cargar datos. En la vista previa de Claude no cargan; prueba desde tu página de GitHub o llena a mano.','Could not load data. It does not load in the Claude preview; try your GitHub page or fill in by hand.'))}
+/* acciones */
+const A={
+tab(d){tab=d.v;beep(620);render();scrollTo(0,0);if(!Q.st)loadQ().then(()=>{if(['hoy','mk'].includes(tab))render()})},
+fav(d){const i=S.favs.indexOf(d.id);i<0?(S.favs.push(d.id),beep(880)):(S.favs.splice(i,1),beep(330));save();render()},
+mkf(d){mkf=d.v;beep();render()},nws(d){nws=d.v;beep();render()},
+term(d){const g=G[d.i];beep(740);modal(`<h2>${g[lg()]}</h2><p>${g[2+lg()]}</p>`)},
+close(){$('#m').style.display='none'},
+refresh(){beep(700);toast(b('Actualizando…','Refreshing…'));Promise.all([loadQ(),loadNews(true).catch(()=>0)]).then(()=>{render();toast(b('Datos al día','Up to date'))})},
+settings(){modal(`<h2>${b('Ajustes','Settings')}</h2><label>${b('Idioma','Language')}</label>${sel(['es','en'],S.lang,'lang',['Español','English'])}<label>${b('Tema','Theme')}</label>${sel([0,1,2,3],S.theme,'theme',TH.map(x=>x[0]))}<label>${b('Tamaño de letra','Text size')}</label>${sel([.9,1,1.15,1.3],S.size,'size',['S','M','L','XL'])}<label>${b('Sonido','Sound')}</label>${sel([1,0],S.sound,'sound',[b('Sí','Yes'),'No'])}<label>${b('Alertas de tu lista (±2%)','Watchlist alerts (±2%)')}</label>${sel([1,0],S.alerts,'alerts',[b('Sí','Yes'),'No'])}<p><button class="b" data-a="exp">${b('Copiar mi lista','Copy my list')}</button> <button class="b" data-a="imp">${b('Importar lista','Import list')}</button></p>`)},
+lang(d){S.lang=d.v;save();render();A.settings()},theme(d){S.theme=+d.v;save();render();A.settings()},size(d){S.size=+d.v;save();render();A.settings()},sound(d){S.sound=+d.v;save();A.settings();beep(700)},alerts(d){S.alerts=+d.v;save();A.settings()},
+exp(){const c=JSON.stringify({f:S.favs});navigator.clipboard&&navigator.clipboard.writeText(c);modal(`<p class="mu" style="word-break:break-all">${esc(c)}</p>`)},
+imp(){modal(`<input id="ic" placeholder='{"f":[...]}'><button class="b on" data-a="doimp">OK</button>`)},
+doimp(){try{S.favs=JSON.parse($('#ic').value).f||[];save();A.close();render();jingle(1)}catch(e){toast(b('Código no válido','Invalid code'))}},
+calc,auto,
+crange(d){CRN=+d.v;drawChart(STK)},
+evalsim(d){STK=d.id;A.close();tab='sim';render();scrollTo(0,0)},
+sellcur(){const t=resolve($('#a_tk').value);if(S.sim.pos[t])A.sell({id:t});else toast(b('No tienes esa acción.','You do not own that.'))},
+async chart(d){const k=d.id,n=+d.r||63;modal(`<h2>${esc(d.n||k)}</h2><div class="chips">${[[21,'1M'],[63,'3M'],[126,'6M'],[252,'1Y']].map(x=>`<button class="b ${x[0]===n?'on':''}" data-a="chart" data-id="${esc(k)}" data-n="${esc(d.n||k)}" data-r="${x[0]}">${x[1]}</button>`).join('')}</div><div id="cv" class="mu">${b('Cargando…','Loading…')}</div><p><button class="b on" data-a="evalsim" data-id="${esc(k)}">${b('Evaluar y simular','Evaluate and simulate')}</button></p>`);
+ try{$('#cv').innerHTML=svgCandles(await candles(k),n)+`<small class="mu">${b('Verde sube, rojo baja. La línea es el promedio de 20 días.','Green up, red down. The line is the 20-day average.')}</small>`}catch(e){$('#cv').textContent=b('Aún no hay velas. Se llenan cuando corre el bot en GitHub.','No candles yet. They fill in when the GitHub bot runs.')}},
+ask(){const i=$('#cq');if(!i||!i.value.trim())return;const q=i.value.trim();const t0=tab;CH.push(['me',esc(q)]);CH.push(['bot',reply(q)]);beep(660);if(tab===t0)render()},
+askq(d){const t0=tab;CH.push(['me',esc(d.v)]);CH.push(['bot',reply(d.v)]);beep(660);if(tab===t0)render()},
+async buy(){const tk=resolve($('#a_tk').value),amt=+$('#sa').value;if(!tk||!(amt>0))return;if(amt>S.sim.cash){toast(b('No te alcanza el efectivo.','Not enough cash.'));return}
+ try{const p=await getPx(tk),o=S.sim.pos[tk]||{q:0,c:0};S.sim.pos[tk]={q:o.q+amt/p,c:o.c+amt};S.sim.cash-=amt;save();jingle(1);render()}catch(e){toast(b('No encontré ese símbolo.','Ticker not found.'))}},
+async sell(d){const o=S.sim.pos[d.id];try{const p=await getPx(d.id);S.sim.cash+=o.q*p;jingle(o.q*p>=o.c);delete S.sim.pos[d.id];save();render()}catch(e){toast(b('No se pudo vender ahora.','Could not sell now.'))}},
+simreset(){S.sim={cash:10000,pos:{}};save();beep(400);render()},
+async tm(){const tk=resolve($('#tt').value),amt=+$('#ta').value,y=+$('#ty').value;
+ try{const c=DEMO?(await candles(tk)).c:(await yj('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(tk)+'?interval=1mo&range='+y+'y')).chart.result[0].indicators.quote[0].close.filter(x=>x!=null);let pk=c[0],dd=0;c.forEach(x=>{pk=Math.max(pk,x);dd=Math.min(dd,x/pk-1)});const v=amt*c[c.length-1]/c[0],r=(v/amt-1)*100;
+  $('#to').innerHTML=`${b('Si hubieras puesto','If you had put')} $${amt.toLocaleString('en-US')} ${b('en','in')} ${esc(tk)} ${b(`hace ${y} años`,`${y} years ago`)}, ${b('hoy tendrías','today you would have')} <b>$${v.toFixed(0)}</b> (${r>=0?'+':''}${r.toFixed(0)}%). ${b('Lo peor que bajó en el camino','The worst drop along the way')}: ${(dd*100).toFixed(0)}%.`;jingle(v>=amt)}catch(e){$('#to').textContent=b('No pude cargar ese símbolo.','Could not load that ticker.')}},
+ci(){const[a,m,r,y]=['c1','c2','c3','c4'].map(i=>+$('#'+i).value),i=r/1200;let v=a;for(let k=0;k<y*12;k++)v=v*(1+i)+m;$('#co').textContent='$'+v.toLocaleString('en-US',{maximumFractionDigits:0});jingle(1)},
+quiz(){const i=Math.random()*G.length|0,o=new Set([i]);while(o.size<3)o.add(Math.random()*G.length|0);const op=[...o].sort(()=>Math.random()-.5);modal(`<h2>${b('¿Qué concepto es?','Which concept is it?')}</h2><p>${G[i][2+lg()]}</p>`+op.map(k=>`<p><button class="b" style="width:100%" data-a="ans" data-v="${k}" data-i="${i}">${G[k][lg()]}</button></p>`).join(''))},
+ans(d){const ok=d.v===d.i;ok?jingle(1):jingle(0);modal(`<h2>${ok?b('Correcto','Correct'):b('Era: ','It was: ')+G[d.i][lg()]}</h2><p>${G[d.i][2+lg()]}</p><button class="b on" data-a="quiz">${b('Siguiente','Next')}</button>`)}
+};
+document.addEventListener('click',e=>{const x=e.target.closest('[data-a]');if(x)A[x.dataset.a](x.dataset);else if(e.target.id==='m')A.close()});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='cq')A.ask()});
+(function(){const d=new Date().toDateString(),y=new Date(Date.now()-864e5).toDateString();if(S.last!==d){S.streak=S.last===y?S.streak+1:1;S.last=d;save()}})();
+render();
+const tick=async f=>{await Promise.all([loadQ(),loadNews(f).catch(()=>0)]);if(['hoy','mk'].includes(tab)&&!document.activeElement.matches('input'))render()};
+tick();
+setInterval(()=>{if(!document.hidden)tick()},60000);
+</script>
+</body>
+</html>
