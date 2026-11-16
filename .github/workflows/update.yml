@@ -1,1 +1,67 @@
-
+name: update-data
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Update data
+        run: |
+          cat > update.mjs <<'EOS'
+          import {writeFileSync,mkdirSync,readFileSync,existsSync} from 'fs';
+          const UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36';
+          const html=readFileSync('index.html','utf8'),mk=n=>JSON.parse(html.match(new RegExp('/\\*'+n+'\\*/([\\s\\S]*?)/\\*END\\*/'))[1]);
+          const BASE=mk('UNI'),SRC=mk('SRC');
+          const get=async(u,t=2)=>{for(let i=0;i<t;i++){try{const r=await fetch(u,{headers:{'user-agent':UA}});if(r.ok)return r}catch(e){}await new Promise(r=>setTimeout(r,800))}throw new Error('fail '+u)};
+          const rd=x=>Math.round(x*100)/100,out=(f,o)=>writeFileSync('data/'+f,JSON.stringify(o));
+          mkdirSync('data',{recursive:true});
+          /* universo: las ~700 mas populares (S&P 500 + ETFs + cripto) */
+          const seen=new Set(BASE.map(u=>u[0])),ALL=[...BASE],add=(s,n,t)=>{s=s.trim().toUpperCase().replace(/\./g,'-');if(s&&!seen.has(s)){seen.add(s);ALL.push([s,n||s,t])}};
+          try{(await(await get('https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv')).text()).split('\n').slice(1).forEach(l=>{const m=l.match(/^([^,]+),("[^"]*"|[^,]*)/);if(m)add(m[1],m[2].replace(/"/g,''),'s')})}catch(e){console.log('sp500 fail')}
+          'VEA VWO BND AGG IVV VUG VTV VIG VYM XLK XLF XLE XLV XLY XLP XLU XLI XLB XLRE XLC SMH SOXX IBIT FBTC ETHA TLT IEF SHY LQD HYG EEM EFA IEMG ITOT MDY IJH IJR VB VO VXUS BNDX SLV USO UNG JEPI JEPQ QYLD DGRO SCHG SCHB SCHX SPLG SPYG TQQQ SQQQ SOXL UPRO ARKW ARKG'.split(' ').forEach(s=>add(s,s,'e'));
+          'DOT AVAX LINK LTC TRX SHIB TON BCH XLM ATOM UNI NEAR APT'.split(' ').forEach(s=>add(s+'-USD',s,'c'));
+          (existsSync('tickers.txt')?readFileSync('tickers.txt','utf8').split(/[\s,]+/):[]).forEach(s=>add(s,s,'s'));
+          out('universe.json',ALL);
+          /* precios (cada corrida) y velas (una vez al dia, despues del cierre) */
+          const full=!existsSync('data/candles.json')||new Date().getUTCHours()===21,Qs={},Cd={};
+          async function one(s){try{const r=(await(await get(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(s)}?interval=1d&range=${full?'6mo':'5d'}`)).json()).chart.result[0],q=r.indicators.quote[0],i=r.timestamp.map((_,k)=>k).filter(k=>q.close[k]!=null&&q.open[k]!=null),c=i.map(k=>rd(q.close[k]));
+           Qs[s]={p:r.meta.regularMarketPrice,pc:c[c.length-2]};if(full)Cd[s]={o:i.map(k=>rd(q.open[k])).slice(-90),h:i.map(k=>rd(q.high[k])).slice(-90),l:i.map(k=>rd(q.low[k])).slice(-90),c:c.slice(-90)}}catch(e){}}
+          for(let i=0;i<ALL.length;i+=12)await Promise.all(ALL.slice(i,i+12).map(([s])=>one(s)));
+          if(Object.keys(Qs).length>20)out('quotes.json',{updated:new Date().toISOString(),q:Qs});
+          if(full&&Object.keys(Cd).length>20)out('candles.json',Cd);
+          /* fundamentales y analistas (una vez al dia) */
+          const T={eps:'trailingDilutedEPS',rev:'trailingTotalRevenue',op:'trailingOperatingIncome',ni:'trailingNetIncome',fcf:'trailingFreeCashFlow',debt:'quarterlyTotalDebt',cash:'quarterlyCashAndCashEquivalents',eq:'quarterlyStockholdersEquity',ca:'quarterlyCurrentAssets',cl:'quarterlyCurrentLiabilities',shares:'quarterlyOrdinarySharesNumber'};
+          async function fund(s){const r=(await(await get(`https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/${encodeURIComponent(s)}?type=${Object.values(T).join(',')}&merge=false&padTimeSeries=true&period1=1600000000&period2=${Math.floor(Date.now()/1e3)+86400}`)).json()).timeseries.result,o={};
+           r.forEach(x=>{const k=x.meta.type[0],a=(x[k]||[]).filter(z=>z&&z.reportedValue);if(a.length)o[k]=a[a.length-1].reportedValue.raw});
+           const f={price:Qs[s]?Qs[s].p:null,g:8};for(const k in T)f[k]=o[T[k]]==null?null:rd(k==='eps'?o[T[k]]:o[T[k]]/1e6);return f}
+          let CR=null;
+          async function an(s){try{if(!CR){const c=((await fetch('https://fc.yahoo.com',{headers:{'user-agent':UA}})).headers.getSetCookie()||[]).map(x=>x.split(';')[0]).join('; ');CR={c,k:await(await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb',{headers:{'user-agent':UA,cookie:c}})).text()}}
+           const f=(await(await fetch(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${s}?modules=financialData&crumb=${encodeURIComponent(CR.k)}`,{headers:{'user-agent':UA,cookie:CR.c}})).json()).quoteSummary.result[0].financialData,v=o=>o&&o.raw!=null?o.raw:null;
+           return{rec:f.recommendationKey,target:v(f.targetMeanPrice),n:v(f.numberOfAnalystOpinions)}}catch(e){return null}}
+          if(full){let St={};try{St=JSON.parse(readFileSync('data/analysis.json','utf8')).stocks||{}}catch(e){}
+           const L=ALL.filter(u=>u[2]==='s');await an('AAPL');
+           for(let i=0;i<L.length;i+=6)await Promise.all(L.slice(i,i+6).map(async([s])=>{try{const f=await fund(s);if(f.rev||f.eps)St[s]={f,an:await an(s)}}catch(e){}}));
+           if(Object.keys(St).length)out('analysis.json',{updated:new Date().toISOString(),stocks:St})}
+          /* noticias */
+          const dec=s=>s.replace(/<!\[CDATA\[|\]\]>/g,'').replace(/&amp;/g,'&').replace(/&#39;|&apos;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
+          const tag=(x,t)=>{const m=x.match(new RegExp('<'+t+'[^>]*>([\\s\\S]*?)</'+t+'>'));return m?dec(m[1]):''};
+          async function rss(k,[s,u]){try{const x=await(await get(u)).text();return [...x.matchAll(/<item[\s>][\s\S]*?<\/item>/g)].slice(0,10).flatMap(m=>{const d=new Date(tag(m[0],'pubDate')),t=tag(m[0],'title'),l=tag(m[0],'link');return t&&l&&!isNaN(d)?[{t,l,d:d.toISOString(),s,k}]:[]})}catch(e){console.log('rss fail',k);return[]}}
+          const items=(await Promise.all(Object.entries(SRC).map(([k,v])=>rss(k,v)))).flat().sort((a,b)=>new Date(b.d)-new Date(a.d)).slice(0,80);
+          if(items.length)out('news.json',{updated:new Date().toISOString(),items});
+          EOS
+          node update.mjs
+      - name: Save data
+        run: |
+          git config user.name "ledger-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || (git commit -m "update data" && git pull --rebase -q && git push)
