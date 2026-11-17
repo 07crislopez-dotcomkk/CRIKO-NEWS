@@ -8,7 +8,7 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,38 +24,52 @@ jobs:
           const get=async(u,t=2)=>{for(let i=0;i<t;i++){try{const r=await fetch(u,{headers:{'user-agent':UA}});if(r.ok)return r}catch(e){}await new Promise(r=>setTimeout(r,800))}throw new Error('fail '+u)};
           const rd=x=>Math.round(x*100)/100,out=(f,o)=>writeFileSync('data/'+f,JSON.stringify(o));
           mkdirSync('data',{recursive:true});
-          /* universo: las ~700 mas populares (S&P 500 + ETFs + cripto) */
+          /* 1. todas las acciones y ETF de EE.UU. (lista oficial de Nasdaq Trader), populares primero */
+          const ETFX='VEA VWO BND AGG IVV VUG VTV VIG VYM XLK XLF XLE XLV XLY XLP XLU XLI XLB XLRE XLC SMH SOXX IBIT FBTC ETHA TLT IEF SHY LQD HYG EEM EFA IEMG ITOT MDY IJH IJR VB VO VXUS BNDX SLV USO UNG JEPI JEPQ QYLD DGRO SCHG SCHB SCHX SPLG SPYG TQQQ SQQQ SOXL UPRO ARKW ARKG'.split(' '),CX='DOT AVAX LINK LTC TRX SHIB TON BCH XLM ATOM UNI NEAR APT'.split(' ');
           const seen=new Set(BASE.map(u=>u[0])),ALL=[...BASE],add=(s,n,t)=>{s=s.trim().toUpperCase().replace(/\./g,'-');if(s&&!seen.has(s)){seen.add(s);ALL.push([s,n||s,t])}};
-          try{(await(await get('https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv')).text()).split('\n').slice(1).forEach(l=>{const m=l.match(/^([^,]+),("[^"]*"|[^,]*)/);if(m)add(m[1],m[2].replace(/"/g,''),'s')})}catch(e){console.log('sp500 fail')}
-          'VEA VWO BND AGG IVV VUG VTV VIG VYM XLK XLF XLE XLV XLY XLP XLU XLI XLB XLRE XLC SMH SOXX IBIT FBTC ETHA TLT IEF SHY LQD HYG EEM EFA IEMG ITOT MDY IJH IJR VB VO VXUS BNDX SLV USO UNG JEPI JEPQ QYLD DGRO SCHG SCHB SCHX SPLG SPYG TQQQ SQQQ SOXL UPRO ARKW ARKG'.split(' ').forEach(s=>add(s,s,'e'));
-          'DOT AVAX LINK LTC TRX SHIB TON BCH XLM ATOM UNI NEAR APT'.split(' ').forEach(s=>add(s+'-USD',s,'c'));
-          (existsSync('tickers.txt')?readFileSync('tickers.txt','utf8').split(/[\s,]+/):[]).forEach(s=>add(s,s,'s'));
-          out('universe.json',ALL);
-          /* precios (cada corrida) y velas (una vez al dia, despues del cierre) */
-          const full=!existsSync('data/candles.json')||new Date().getUTCHours()===21,Qs={},Cd={};
+          ETFX.forEach(s=>add(s,s,'e'));CX.forEach(s=>add(s+'-USD',s,'c'));
+          const FIX=new Set(ALL.map(u=>u[0])),BAD=/warrants?\b|rights?\b|\bunits?\b|preferred|notes? due|subordinated|depositary|% /i;
+          for(const f of ['nasdaqlisted','otherlisted']){try{(await(await get(`https://www.nasdaqtrader.com/dynamic/SymDir/${f}.txt`)).text()).split('\n').slice(1).forEach(l=>{const c=l.split('|'),ti=f==='nasdaqlisted'?3:6,ei=f==='nasdaqlisted'?6:4;if(c.length<7||c[ti]==='Y'||/[$^]/.test(c[0])||BAD.test(c[1]))return;add(c[0],c[1].replace(/ - .*$/,''),c[ei]==='Y'?'e':'s')})}catch(e){console.log('lista fail',f)}}
+          /* 2. precios de todo el universo en lotes de 100 */
+          let CR=null;
+          async function crumb(){const c=((await fetch('https://fc.yahoo.com',{headers:{'user-agent':UA}})).headers.getSetCookie()||[]).map(x=>x.split(';')[0]).join('; ');CR={c,k:await(await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb',{headers:{'user-agent':UA,cookie:c}})).text()}}
+          const Qs={},Mc={};
+          try{await crumb();const L=ALL.map(u=>u[0]);
+           for(let i=0;i<L.length;i+=400)await Promise.all([0,1,2,3].map(async k=>{const ch=L.slice(i+k*100,i+k*100+100);if(!ch.length)return;try{(await(await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ch.join(','))}&crumb=${encodeURIComponent(CR.k)}`,{headers:{'user-agent':UA,cookie:CR.c}})).json()).quoteResponse.result.forEach(x=>{if(x.regularMarketPrice!=null){Qs[x.symbol]={p:x.regularMarketPrice,c:rd(x.regularMarketChangePercent||0)};if(x.marketCap)Mc[x.symbol]=x.marketCap}})}catch(e){}}))}catch(e){console.log('lotes fail')}
+          /* 3. las 1000 mas populares (por valor de mercado) llevan velas y analisis */
+          const tops=ALL.filter(u=>u[2]==='s'&&!FIX.has(u[0])&&Mc[u[0]]).sort((a,b)=>Mc[b[0]]-Mc[a[0]]),POP=[...ALL.filter(u=>FIX.has(u[0])),...tops].slice(0,1000);
+          if(POP.length<300)POP.push(...ALL.filter(u=>!FIX.has(u[0])).slice(0,1000-POP.length));
+          const pset=new Set(POP.map(u=>u[0]));out('universe.json',[...POP,...ALL.filter(u=>!pset.has(u[0]))]);
+          const full=!existsSync('data/candles.json')||new Date().getUTCHours()===21,Cd={};
           async function one(s){try{const r=(await(await get(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(s)}?interval=1d&range=${full?'6mo':'5d'}`)).json()).chart.result[0],q=r.indicators.quote[0],i=r.timestamp.map((_,k)=>k).filter(k=>q.close[k]!=null&&q.open[k]!=null),c=i.map(k=>rd(q.close[k]));
-           Qs[s]={p:r.meta.regularMarketPrice,pc:c[c.length-2]};if(full)Cd[s]={o:i.map(k=>rd(q.open[k])).slice(-90),h:i.map(k=>rd(q.high[k])).slice(-90),l:i.map(k=>rd(q.low[k])).slice(-90),c:c.slice(-90)}}catch(e){}}
-          for(let i=0;i<ALL.length;i+=12)await Promise.all(ALL.slice(i,i+12).map(([s])=>one(s)));
+           if(!Qs[s])Qs[s]={p:r.meta.regularMarketPrice,c:c.length>1?rd((c[c.length-1]/c[c.length-2]-1)*100):0};
+           if(full)Cd[s]={o:i.map(k=>rd(q.open[k])).slice(-60),h:i.map(k=>rd(q.high[k])).slice(-60),l:i.map(k=>rd(q.low[k])).slice(-60),c:c.slice(-60)}}catch(e){}}
+          const need=POP.map(u=>u[0]).filter(s=>full||!Qs[s]);
+          for(let i=0;i<need.length;i+=12)await Promise.all(need.slice(i,i+12).map(one));
           if(Object.keys(Qs).length>20)out('quotes.json',{updated:new Date().toISOString(),q:Qs});
           if(full&&Object.keys(Cd).length>20)out('candles.json',Cd);
-          /* fundamentales y analistas (una vez al dia) */
+          /* 4. fundamentales y analistas (una vez al dia) */
           const T={eps:'trailingDilutedEPS',rev:'trailingTotalRevenue',op:'trailingOperatingIncome',ni:'trailingNetIncome',fcf:'trailingFreeCashFlow',debt:'quarterlyTotalDebt',cash:'quarterlyCashAndCashEquivalents',eq:'quarterlyStockholdersEquity',ca:'quarterlyCurrentAssets',cl:'quarterlyCurrentLiabilities',shares:'quarterlyOrdinarySharesNumber'};
           async function fund(s){const r=(await(await get(`https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/${encodeURIComponent(s)}?type=${Object.values(T).join(',')}&merge=false&padTimeSeries=true&period1=1600000000&period2=${Math.floor(Date.now()/1e3)+86400}`)).json()).timeseries.result,o={};
            r.forEach(x=>{const k=x.meta.type[0],a=(x[k]||[]).filter(z=>z&&z.reportedValue);if(a.length)o[k]=a[a.length-1].reportedValue.raw});
            const f={price:Qs[s]?Qs[s].p:null,g:8};for(const k in T)f[k]=o[T[k]]==null?null:rd(k==='eps'?o[T[k]]:o[T[k]]/1e6);return f}
-          let CR=null;
-          async function an(s){try{if(!CR){const c=((await fetch('https://fc.yahoo.com',{headers:{'user-agent':UA}})).headers.getSetCookie()||[]).map(x=>x.split(';')[0]).join('; ');CR={c,k:await(await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb',{headers:{'user-agent':UA,cookie:c}})).text()}}
-           const f=(await(await fetch(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${s}?modules=financialData&crumb=${encodeURIComponent(CR.k)}`,{headers:{'user-agent':UA,cookie:CR.c}})).json()).quoteSummary.result[0].financialData,v=o=>o&&o.raw!=null?o.raw:null;
-           return{rec:f.recommendationKey,target:v(f.targetMeanPrice),n:v(f.numberOfAnalystOpinions)}}catch(e){return null}}
-          if(full){let St={};try{St=JSON.parse(readFileSync('data/analysis.json','utf8')).stocks||{}}catch(e){}
-           const L=ALL.filter(u=>u[2]==='s');await an('AAPL');
-           for(let i=0;i<L.length;i+=6)await Promise.all(L.slice(i,i+6).map(async([s])=>{try{const f=await fund(s);if(f.rev||f.eps)St[s]={f,an:await an(s)}}catch(e){}}));
+          async function qs(s){const q=(await(await fetch(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${s}?modules=financialData,defaultKeyStatistics&crumb=${encodeURIComponent(CR.k)}`,{headers:{'user-agent':UA,cookie:CR.c}})).json()).quoteSummary.result[0],f=q.financialData,k=q.defaultKeyStatistics,v=o=>o&&o.raw!=null?o.raw:null,M=o=>v(o)==null?null:rd(v(o)/1e6),rev=v(f.totalRevenue);
+           return{f:{price:Qs[s]?Qs[s].p:v(f.currentPrice),eps:v(k.trailingEps),shares:M(k.sharesOutstanding),rev:M(f.totalRevenue),op:rev&&v(f.operatingMargins)!=null?rd(rev*v(f.operatingMargins)/1e6):null,ni:rev&&v(f.profitMargins)!=null?rd(rev*v(f.profitMargins)/1e6):null,fcf:M(f.freeCashflow),debt:M(f.totalDebt),cash:M(f.totalCash),eq:v(k.bookValue)!=null&&v(k.sharesOutstanding)?rd(v(k.bookValue)*v(k.sharesOutstanding)/1e6):null,ca:v(f.currentRatio)!=null?rd(v(f.currentRatio)*100):null,cl:100,g:v(f.earningsGrowth)!=null?rd(Math.min(Math.max(v(f.earningsGrowth)*100,0),25)):8},an:{rec:f.recommendationKey,target:v(f.targetMeanPrice),n:v(f.numberOfAnalystOpinions)}}}
+          let St={};
+          if(full){try{St=JSON.parse(readFileSync('data/analysis.json','utf8')).stocks||{}}catch(e){}
+           const L=POP.filter(u=>u[2]==='s');
+           for(let i=0;i<L.length;i+=6)await Promise.all(L.slice(i,i+6).map(async([s])=>{let r=null;try{r=await qs(s)}catch(e){}if(!r||!(r.f.rev||r.f.eps)){try{r={f:await fund(s),an:null}}catch(e){r=null}}if(r&&(r.f.rev||r.f.eps))St[s]=r}));
            if(Object.keys(St).length)out('analysis.json',{updated:new Date().toISOString(),stocks:St})}
-          /* noticias */
+          let old={};try{old=JSON.parse(readFileSync('data/status.json','utf8'))}catch(e){}
+          out('status.json',{...old,updated:new Date().toISOString(),universe:ALL.length,quotes:Object.keys(Qs).length,...(full?{candles:Object.keys(Cd).length,analysis:Object.keys(St).length,full:new Date().toISOString()}:{})});
+          /* 5. noticias en espanol facil */
           const dec=s=>s.replace(/<!\[CDATA\[|\]\]>/g,'').replace(/&amp;/g,'&').replace(/&#39;|&apos;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
           const tag=(x,t)=>{const m=x.match(new RegExp('<'+t+'[^>]*>([\\s\\S]*?)</'+t+'>'));return m?dec(m[1]):''};
           async function rss(k,[s,u]){try{const x=await(await get(u)).text();return [...x.matchAll(/<item[\s>][\s\S]*?<\/item>/g)].slice(0,10).flatMap(m=>{const d=new Date(tag(m[0],'pubDate')),t=tag(m[0],'title'),l=tag(m[0],'link');return t&&l&&!isNaN(d)?[{t,l,d:d.toISOString(),s,k}]:[]})}catch(e){console.log('rss fail',k);return[]}}
           const items=(await Promise.all(Object.entries(SRC).map(([k,v])=>rss(k,v)))).flat().sort((a,b)=>new Date(b.d)-new Date(a.d)).slice(0,80);
+          const prev={};try{for(const i of JSON.parse(readFileSync('data/news.json','utf8')).items)if(i.es)prev[i.l]=i.es}catch(e){}
+          async function tr(t){try{const r=await(await get('https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=es&dt=t&q='+encodeURIComponent(t),1)).json();return r[0].map(x=>x[0]).join('')}catch(e){}try{return(await(await get('https://api.mymemory.translated.net/get?langpair=en|es&q='+encodeURIComponent(t),1)).json()).responseData.translatedText}catch(e){return null}}
+          for(const i of items){const es=prev[i.l]||await tr(i.t);if(es)i.es=es}
           if(items.length)out('news.json',{updated:new Date().toISOString(),items});
           EOS
           node update.mjs
